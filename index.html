@@ -1,0 +1,572 @@
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Guinchos - Sistema de Gestão</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
+    <script>
+        // Service Worker - apenas em produção (https://)
+        if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker registrado:', reg.scope))
+                    .catch(err => console.log('Service Worker não registrado:', err));
+            });
+        } else if (window.location.protocol === 'file:') {
+            console.log('Service Worker desabilitado em file:// (use um servidor local)');
+        }
+    </script>
+</head>
+
+<body onclick="fecharCalendariosSeClicarFora(event)">
+
+    <!-- TOAST CONTAINER -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- PWA INSTALL BANNER -->
+    <div id="pwa-install-banner">
+        <div class="pwa-content">
+            <i class="fas fa-arrow-down-to-bracket pwa-icon"></i>
+            <div>
+                <div class="pwa-text">Instalar Aplicativo</div>
+                <div style="font-size:0.75rem;opacity:0.9">Adicione à tela inicial para acesso rápido</div>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center">
+            <button class="pwa-action" onclick="installPWA()">Instalar</button>
+            <button class="pwa-close" onclick="dismissPWA()"><i class="fas fa-times"></i></button>
+        </div>
+    </div>
+
+    <!-- LOADING OVERLAY -->
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <p style="color:var(--gray-600);font-size:0.875rem;margin-top:1rem">Carregando...</p>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- TELA DE LOGIN -->
+    <!-- ============================================ -->
+    <div id="loginScreen" class="screen hidden">
+        <div class="auth-container">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <div style="font-size:3rem;margin-bottom:1rem"><i class="fas fa-truck-pickup"
+                            style="color:var(--primary-600)"></i></div>
+                    <h1>Controle de Guinchos</h1>
+                    <p>Faça login para acessar o sistema</p>
+                </div>
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label for="loginEmail">Email</label>
+                        <input type="email" id="loginEmail" placeholder="seu@email.com" required
+                            oninput="clearFieldError('loginEmail')">
+                        <span class="error-message"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Senha</label>
+                        <input type="password" id="loginPassword" placeholder="••••••••" required>
+                        <span class="error-message"></span>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0">
+                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:400">
+                            <input type="checkbox" id="rememberUser"
+                                style="width:18px;height:18px;accent-color:var(--primary-600)">
+                            Lembrar meu email
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block" style="margin-top:1rem">
+                        <i class="fas fa-sign-in-alt"></i> Entrar
+                    </button>
+                </form>
+                <div style="text-align:center;margin-top:1.5rem;color:var(--gray-500);font-size:0.875rem">
+                    Não tem uma conta?
+                    <a href="#" onclick="showScreen('registerScreen')"
+                        style="color:var(--primary-600);font-weight:600;text-decoration:none">Cadastre-se</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- TELA DE CADASTRO -->
+    <!-- ============================================ -->
+    <div id="registerScreen" class="screen hidden">
+        <div class="auth-container">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <h1>Criar Conta</h1>
+                    <p>Preencha os dados para se cadastrar</p>
+                </div>
+                <form id="registerForm" onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label for="registerName">Nome Completo</label>
+                        <input type="text" id="registerName" placeholder="Seu nome" required
+                            oninput="clearFieldError('registerName')">
+                        <span class="error-message"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="registerEmail">Email</label>
+                        <input type="email" id="registerEmail" placeholder="seu@email.com" required
+                            oninput="clearFieldError('registerEmail')">
+                        <span class="error-message"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="registerPassword">Senha</label>
+                        <input type="password" id="registerPassword" placeholder="Mínimo 6 caracteres" required
+                            oninput="clearFieldError('registerPassword')">
+                        <span class="error-message"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="registerConfirmPassword">Confirmar Senha</label>
+                        <input type="password" id="registerConfirmPassword" placeholder="Repita a senha" required
+                            oninput="clearFieldError('registerConfirmPassword')">
+                        <span class="error-message"></span>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block" style="margin-top:1rem">
+                        <i class="fas fa-user-plus"></i> Criar Conta
+                    </button>
+                </form>
+                <div style="text-align:center;margin-top:1.5rem;color:var(--gray-500);font-size:0.875rem">
+                    Já tem uma conta?
+                    <a href="#" onclick="showScreen('loginScreen')"
+                        style="color:var(--primary-600);font-weight:600;text-decoration:none">Faça login</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- APP PRINCIPAL -->
+    <!-- ============================================ -->
+    <div id="appScreen" class="screen hidden">
+        <div class="app-container">
+
+            <!-- HEADER -->
+            <div class="header-card">
+                <div>
+                    <h1><i class="fas fa-truck-pickup"></i> Controle de Guinchos</h1>
+                    <p class="subtitle">Sistema de Gestão de Pátio v3.0</p>
+                </div>
+                <div class="header-actions">
+                    <button id="headerInstallBtn" class="btn btn-primary hidden" onclick="installPWA()">
+                        <i class="fas fa-download"></i> <span class="desktop-only">Instalar App</span>
+                    </button>
+                    <div class="user-menu">
+                        <button class="user-btn" onclick="toggleUserMenu()">
+                            <div class="user-avatar" id="userInitial">U</div>
+                            <span class="user-name" id="userName">Usuário</span>
+                            <i class="fas fa-chevron-down" style="font-size:0.75rem;color:var(--gray-400)"></i>
+                        </button>
+                        <div class="user-dropdown" id="userDropdown">
+                            <button class="user-dropdown-item" onclick="showEditNameModal()">
+                                <i class="fas fa-user-edit"></i> Editar nome
+                            </button>
+                            <button class="user-dropdown-item danger" onclick="handleLogout()">
+                                <i class="fas fa-sign-out-alt"></i> Sair
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+
+            <!-- ======================= -->
+            <!-- FORM VIEW (HIDDEN) -->
+            <!-- ======================= -->
+            <div id="formView" class="hidden">
+                <div style="margin-bottom:1rem">
+                    <button class="btn btn-outline btn-sm" onclick="toggleFormView(false)">
+                        <i class="fas fa-arrow-left"></i> Voltar ao Histórico
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-plus-circle"></i> <span id="formTitle">Nova Entrada</span></h2>
+                        <span id="editModeIndicator" class="badge badge-warning hidden">Modo Edição</span>
+                    </div>
+                    <div class="card-body">
+                        <form id="entryForm" onsubmit="handleFormSubmit(event)">
+                            <input type="hidden" id="editId">
+
+                            <!-- SEÇÃO: VEÍCULO -->
+                            <div class="form-section">
+                                <div class="form-section-title"><i class="fas fa-car"></i> Veículo</div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>Placa*</label>
+                                        <input type="text" id="placa" oninput="mascaraPlaca(this)" maxlength="8"
+                                            required placeholder="ABC-1234" style="text-transform:uppercase"
+                                            onfocus="clearFieldError('placa')">
+                                        <span class="error-message"></span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Marca*</label>
+                                        <select id="marca" required onchange="carregarModelos()">
+                                            <option value="">Selecione...</option>
+                                            <option value="RAM">RAM</option>
+                                            <option value="Jeep">Jeep</option>
+                                            <option value="Importadas">Importadas</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Modelo*</label>
+                                        <select id="modelo" required disabled></select>
+                                    </div>
+                                    <div class="form-group calendar-wrapper">
+                                        <label>Data de Chegada*</label>
+                                        <input type="text" id="dataHoraVisual" readonly
+                                            onclick="abrirCalendario('Cadastro', event)" style="cursor:pointer">
+                                        <input type="hidden" id="dataHora">
+                                        <div id="calendarCadastro" class="calendar-popup"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SEÇÃO: PROPRIETÁRIO -->
+                            <div class="form-section">
+                                <div class="form-section-title"><i class="fas fa-user"></i> Proprietário</div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>Nome</label>
+                                        <input type="text" id="nomeProprietario" placeholder="Nome do cliente">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>WhatsApp</label>
+                                        <input type="tel" id="telefoneProprietario" oninput="mascaraTelefone(this)"
+                                            placeholder="(00) 00000-0000">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SEÇÃO: ATENDIMENTO -->
+                            <div class="form-section">
+                                <div class="form-section-title"><i class="fas fa-tools"></i> Atendimento</div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>Consultor Técnico*</label>
+                                        <select id="consultor" required>
+                                            <option value="">Selecione...</option>
+                                            <option value="Ana Carolina">Ana Carolina</option>
+                                            <option value="Caique Garcia">Caique Garcia</option>
+                                            <option value="Danilo Fernandes (Funilaria)">Danilo Fernandes (Funilaria)
+                                            </option>
+                                            <option value="Heloisa Negreiro">Heloisa Negreiro</option>
+                                            <option value="Juliana Santos (Funilaria)">Juliana Santos (Funilaria)
+                                            </option>
+                                            <option value="Jupiassu Oliveira">Jupiassu Oliveira</option>
+                                            <option value="Marcelo Paz">Marcelo Paz</option>
+                                            <option value="Recepcao">Recepção</option>
+                                            <option value="Rodrigo Cintra">Rodrigo Cintra</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Tipo de Guincho*</label>
+                                        <select id="tipoGuincho" required>
+                                            <option value="">Selecione...</option>
+                                            <option value="Reboque/Particular">Reboque/Particular</option>
+                                            <option value="Seguradora">Seguradora</option>
+                                            <option value="Grow">Grow</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Motivo/Pane*</label>
+                                        <select id="tipoPane" required onchange="verificarCampoOS()">
+                                            <option value="">Selecione...</option>
+                                            <option value="Pane Eletrica">Pane Eletrica</option>
+                                            <option value="Pane Mecanica">Pane Mecanica</option>
+                                            <option value="Sinistro">Sinistro</option>
+                                            <option value="Retorno">Retorno</option>
+                                            <option value="Revisao">Revisao</option>
+                                            <option value="Revisao">Veículo para ShowRoom</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group hidden" id="divNumeroOS">
+                                        <label>Número da O.S.*</label>
+                                        <input type="text" id="numeroOS">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SEÇÃO: GUINCHEIRO -->
+                            <div class="form-section">
+                                <div class="form-section-title"><i class="fas fa-truck-pickup"></i> Guincheiro</div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>Nome do Guincheiro</label>
+                                        <input type="text" id="nomeGuincheiro" placeholder="Nome do guincheiro">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Telefone do Guincheiro</label>
+                                        <input type="tel" id="telefoneGuincheiro" oninput="mascaraTelefone(this)"
+                                            placeholder="(00) 00000-0000">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SEÇÃO: FOTOS E ARQUIVOS -->
+                            <div class="form-section">
+                                <div class="form-section-title"><i class="fas fa-file-upload"></i> Fotos e Arquivos do
+                                    Veículo</div>
+                                <div class="form-group">
+                                    <label for="inputFotos" class="file-upload-label" id="dropZone">
+                                        <i class="fas fa-camera"></i>
+                                        <div class="file-upload-text">
+                                            <span class="file-upload-title">Tirar, Selecionar ou Arrastar
+                                                Arquivos</span>
+                                            <span class="file-upload-subtitle">(Máx: 5 arquivos - Imagens, PDF,
+                                                DOC)</span>
+                                        </div>
+                                    </label>
+                                    <input type="file" id="inputFotos" multiple accept="image/*,.pdf,.doc,.docx"
+                                        onchange="handleFileSelect(event)" style="display:none">
+                                    <div id="previewContainer" class="preview-container"></div>
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="button" id="cancelBtn" onclick="toggleFormView(false)"
+                                    class="btn btn-outline">
+                                    <i class="fas fa-times"></i> Cancelar
+                                </button>
+                                <button type="submit" id="submitBtn" class="btn btn-primary">
+                                    <i class="fas fa-plus"></i> Registrar
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+            </div> <!-- END FORM VIEW -->
+
+            <!-- ======================= -->
+            <!-- LIST VIEW (DEFAULT) -->
+            <!-- ======================= -->
+            <div id="listView">
+                <!-- CABEÇALHO DA LISTA -->
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem">
+                    <h2 style="font-size:1.5rem; font-weight:700; color:var(--gray-800)"><i class="fas fa-list-ul"
+                            style="margin-right:0.5rem; color:var(--primary-600)"></i>Histórico de Veículos</h2>
+                    <button class="btn btn-primary" onclick="toggleFormView(true)">
+                        <i class="fas fa-plus"></i> Nova Entrada
+                    </button>
+                </div>
+
+                <!-- FILTROS -->
+                <div class="card">
+                    <div class="card-body">
+                        <h3
+                            style="margin: 0 0 1rem 0; font-size: 1.1rem; color: var(--gray-700); display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-filter"></i> Filtros
+                        </h3>
+                        <div id="filterActiveIndicator" class="filter-active-indicator" style="display:none">
+                            <i class="fas fa-filter"></i>
+                            <span id="filterActiveText">Filtros aplicados</span>
+                            <button onclick="limparFiltro()" class="filter-clear-btn">
+                                <i class="fas fa-times"></i> Limpar
+                            </button>
+                        </div>
+                        <div class="filter-grid filter-grid-custom">
+                            <div class="form-group search-bar" style="margin:0">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="buscaInteligente" oninput="atualizarTabela()"
+                                    placeholder="Buscar por placa, nome, consultor ou modelo...">
+                            </div>
+                            <div class="form-group calendar-wrapper" style="margin:0">
+                                <label style="font-size:0.75rem;color:var(--gray-500)">De:</label>
+                                <input type="text" id="filtroDataInicio" readonly
+                                    onclick="abrirCalendario('Inicio', event)" style="cursor:pointer"
+                                    placeholder="Selecionar">
+                                <div id="calendarInicio" class="calendar-popup"></div>
+                            </div>
+                            <div class="form-group calendar-wrapper" style="margin:0">
+                                <label style="font-size:0.75rem;color:var(--gray-500)">Até:</label>
+                                <input type="text" id="filtroDataFim" readonly onclick="abrirCalendario('Fim', event)"
+                                    style="cursor:pointer" placeholder="Selecionar">
+                                <div id="calendarFim" class="calendar-popup"></div>
+                            </div>
+                            <button onclick="limparFiltro()" class="btn btn-outline btn-sm btn-filter btn-filter-custom"
+                                title="Limpar filtros">
+                                <i class="fas fa-eraser"></i><span class="btn-text"> Limpar</span>
+                            </button>
+                            <button onclick="exportToCSV()" class="btn btn-success btn-sm btn-filter btn-filter-custom"
+                                title="Exportar para Excel">
+                                <i class="fas fa-file-excel"></i><span class="btn-text"> Exportar</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TABELA -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-list"></i> Histórico de Veículos</h2>
+                        <span id="counter" class="badge badge-primary">0 Veículos</span>
+                    </div>
+
+                    <!-- Desktop Table -->
+                    <div class="table-container desktop-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Proprietario</th>
+                                    <th>Veiculo</th>
+                                    <th>Pane</th>
+                                    <th>Consultor</th>
+                                    <th>Guincheiro</th>
+                                    <th style="text-align:center">Acoes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Mobile Cards -->
+                    <div id="mobileCards" class="mobile-cards"></div>
+
+                    <!-- Empty State -->
+                    <div id="emptyState" class="empty-state" style="display:none">
+                        <i class="fas fa-search"></i>
+                        <p>Nenhum registro encontrado para os filtros atuais.</p>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div id="pagination" class="pagination"></div>
+                </div>
+            </div> <!-- END LIST VIEW -->
+
+        </div> <!-- END app-container -->
+    </div> <!-- END appScreen -->
+
+    <!-- ============================================ -->
+    <!-- MODAL DE CONFIRMAÇÃO -->
+    <!-- ============================================ -->
+    <div id="confirmModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header danger">
+                <div class="modal-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                <div>
+                    <div class="modal-title" id="confirmModalTitle">Confirmar Exclusão</div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <p id="confirmModalMessage">Tem certeza que deseja excluir este registro?</p>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeConfirmModal()" class="btn btn-outline">Cancelar</button>
+                <button onclick="executeConfirm()" class="btn btn-danger">Excluir</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MODAL DE HISTÓRICO -->
+    <!-- ============================================ -->
+    <div id="historyModal" class="modal-overlay">
+        <div class="modal history-modal">
+            <div class="modal-header">
+                <div class="modal-icon" style="background:var(--primary-100);color:var(--primary-600)"><i
+                        class="fas fa-history"></i></div>
+                <div>
+                    <div class="modal-title">Histórico da Placa</div>
+                    <div style="font-size:1.25rem;font-weight:700;color:var(--primary-600)" id="historyModalPlaca">
+                        ABC-1234</div>
+                </div>
+            </div>
+            <div class="modal-body" style="padding:0">
+                <div id="historyList" class="history-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeHistoryModal()" class="btn btn-primary">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MODAL EDITAR NOME -->
+    <!-- ============================================ -->
+    <div id="editNameModal" class="modal-overlay">
+        <div class="modal" style="max-width:400px">
+            <div class="modal-header">
+                <div class="modal-icon" style="background:var(--primary-100);color:var(--primary-600)">
+                    <i class="fas fa-user-edit"></i>
+                </div>
+                <div>
+                    <div class="modal-title">Editar Nome</div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" style="margin:0">
+                    <label>Novo nome</label>
+                    <input type="text" id="editNameInput" placeholder="Digite seu nome">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeEditNameModal()" class="btn btn-outline">Cancelar</button>
+                <button onclick="saveNewName()" class="btn btn-primary">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MODAL DE DETALHES DO REGISTRO -->
+    <!-- ============================================ -->
+    <div id="detailModal" class="modal-overlay">
+        <div class="modal detail-modal">
+            <div class="modal-header">
+                <div class="modal-icon" style="background:var(--primary-100);color:var(--primary-600)">
+                    <i class="fas fa-car"></i>
+                </div>
+                <div>
+                    <div class="modal-title">Detalhes do Veículo</div>
+                    <div style="font-size:1.25rem;font-weight:700;color:var(--primary-600)" id="detailModalPlaca">
+                        ABC-1234</div>
+                </div>
+                <button class="detail-close-btn" onclick="closeDetailModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="padding:0">
+                <div id="detailContent" class="detail-content"></div>
+            </div>
+            <div class="modal-footer detail-footer">
+                <div id="detailMetaInfo" class="detail-meta-info"></div>
+                <button onclick="closeDetailModal()" class="btn btn-primary">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação -->
+    <div id="confirmModal" class="modal-overlay">
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <div class="modal-icon" style="background:var(--danger-100);color:var(--danger-600)">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div>
+                    <div class="modal-title" id="confirmModalTitle">Confirmar Ação</div>
+                </div>
+                <button class="detail-close-btn" onclick="closeConfirmModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmModalMessage" style="margin: 0; color: var(--gray-600); line-height: 1.6;">
+                    Tem certeza que deseja realizar esta ação?
+                </p>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <button onclick="closeConfirmModal()" class="btn btn-outline">Cancelar</button>
+                <button onclick="executeConfirm()" class="btn btn-danger">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
